@@ -1,3 +1,29 @@
 {
-  "viagens": []
+  "viagens": [
+    {
+      "volta": "2027-02-21",
+      "janela_ida": [
+        6,
+        16
+      ],
+      "janela_volta": [
+        10,
+        20
+      ],
+      "adultos": 1,
+      "max_paradas": 0,
+      "alerta_queda_reais": 50,
+      "checagens": [
+        "madrugada",
+        "manha",
+        "noite"
+      ],
+      "ativa": true,
+      "nome": "Rafaju",
+      "origem": "CGH",
+      "destino": "NAT",
+      "ida": "2027-02-18",
+      "id": "cgh-nat-2027-02-18"
+    }
+  ]
 }
