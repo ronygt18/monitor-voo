@@ -1,0 +1,1313 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Monitor de passagens</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tweetnacl/1.0.3/nacl.min.js"></script>
+<style>
+:root{
+  --bg:#EAF2F5; --surface:#FFFFFF; --ink:#13304A; --muted:#5B7285; --line:#CFDDE5;
+  --sea:#11807E; --sky:#3E7FC1; --dune:#C9A46A; --down:#14845A; --up:#C2413B;
+  color-scheme:light;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0E1A24;--surface:#152735;--ink:#E4EEF4;--muted:#93A9B9;--line:#25404F;
+        --sea:#3FC2BC;--sky:#7FB2EA;--dune:#DDBB82;--down:#4CC98F;--up:#F07A72;color-scheme:dark}
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-variant-numeric:tabular-nums}
+main{max-width:980px;margin:0 auto;padding:20px 20px 64px}
+a{color:var(--sky)}
+:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+[hidden]{display:none!important}
+
+/* topo */
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px}
+.brand{font-weight:700;font-size:18px;display:flex;gap:8px;align-items:center}
+.tabs{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--surface)}
+.tabs button{border:0;background:none;color:var(--muted);font:inherit;font-size:15px;font-weight:600;padding:7px 16px;border-radius:999px;cursor:pointer}
+.tabs button[aria-current=page]{background:var(--ink);color:var(--surface)}
+
+/* botões e campos */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;font:inherit;font-weight:600;padding:11px 18px;border-radius:10px;background:var(--sea);color:#fff;border:0;cursor:pointer}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.ghost{background:none;color:var(--ink);border:1px solid var(--line)}
+.btn.small{padding:7px 12px;font-size:14px}
+.btn.danger{background:none;color:var(--up);border:1px solid var(--line)}
+label{display:block;font-weight:600;font-size:14px;margin-bottom:5px}
+.hint{color:var(--muted);font-size:14px;margin:4px 0 0}
+input[type=text],input[type=date],input[type=number],input[type=password],select{
+  width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+input.code{text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.row{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+.field{margin-bottom:16px}
+.checks{display:flex;flex-wrap:wrap;gap:8px}
+.checks label{display:inline-flex;align-items:center;gap:8px;font-weight:500;border:1px solid var(--line);border-radius:999px;padding:7px 14px;margin:0;cursor:pointer;background:var(--bg)}
+.checks input{accent-color:var(--sea);margin:0}
+.inline{display:flex;align-items:center;gap:8px}
+.inline select{width:auto}
+
+/* cartão de embarque */
+.pass{display:grid;grid-template-columns:1fr auto;background:var(--surface);border-radius:20px;overflow:hidden;border:1px solid var(--line)}
+.pass-main{padding:26px 28px}
+.route{display:flex;align-items:center;gap:18px;font-weight:700;font-size:clamp(40px,8vw,64px);line-height:1;letter-spacing:-.02em}
+.route svg{flex:0 0 auto;width:clamp(36px,6vw,54px);color:var(--sea)}
+.cities{color:var(--muted);font-size:14px;margin-top:6px}
+.legs{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:22px}
+.leg h3{margin:0 0 2px;font-size:13px;font-weight:600;color:var(--muted)}
+.leg p{margin:0;font-weight:600}
+.leg small{color:var(--muted);font-size:14px}
+.stub{position:relative;padding:26px 28px;min-width:230px;border-left:2px dashed var(--line);display:flex;flex-direction:column;justify-content:space-between;gap:14px}
+.stub::before,.stub::after{content:"";position:absolute;left:-13px;width:24px;height:24px;border-radius:50%;background:var(--bg)}
+.stub::before{top:-12px}.stub::after{bottom:-12px}
+.price{font-size:44px;font-weight:700;line-height:1;letter-spacing:-.02em}
+.price-note{color:var(--muted);font-size:14px}
+.delta{font-weight:600;font-size:15px}
+.delta.down{color:var(--down)}.delta.up{color:var(--up)}
+.verdict{border-radius:10px;padding:10px 12px;font-weight:600;font-size:15px;background:color-mix(in srgb,var(--sea) 14%,transparent)}
+.verdict.buy{background:color-mix(in srgb,var(--down) 20%,transparent)}
+
+.trips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.trips button{font:inherit;font-size:14px;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 14px;border-radius:999px;cursor:pointer}
+.trips button[aria-pressed=true]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.trips .off{font-weight:500;opacity:.7}
+
+.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-radius:14px;overflow:hidden;margin:22px 0}
+.facts div{background:var(--surface);padding:14px 16px}
+.facts dt{color:var(--muted);font-size:13px}
+.facts dd{margin:2px 0 0;font-weight:700;font-size:20px}
+.facts dd small{display:block;font-size:13px;font-weight:500;color:var(--muted)}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px}
+.panel-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+h1{font-size:28px;letter-spacing:-.02em;margin:0 0 6px}
+h2{margin:0;font-size:20px;letter-spacing:-.01em}
+.lead{color:var(--muted);margin:0 0 22px;max-width:60ch}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px}
+.seg button{border:0;background:none;color:var(--muted);font:inherit;font-size:14px;font-weight:600;padding:6px 14px;border-radius:999px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--surface)}
+.chart-box{position:relative;height:340px}
+.table-wrap{overflow-x:auto;margin-top:22px}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:620px}
+th{text-align:left;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{white-space:nowrap;padding:9px 10px;border-bottom:1px solid var(--line)}
+td.num{text-align:right;font-weight:600}
+.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}
+.empty{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:40px 28px;text-align:center}
+.empty p{color:var(--muted);max-width:52ch;margin:8px auto 18px}
+footer.note{color:var(--muted);font-size:13px;margin-top:22px}
+
+/* configuração: passos */
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px 22px;display:grid;grid-template-columns:36px 1fr;gap:4px 14px}
+.step .n{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:700;background:var(--bg);border:1px solid var(--line)}
+.step.done .n{background:var(--down);border-color:var(--down);color:#fff}
+.step h2{font-size:18px;margin:4px 0 4px}
+.step .body{grid-column:2}
+.step ol{margin:8px 0 14px;padding-left:20px;color:var(--ink)}
+.step ol li{margin-bottom:4px}
+.step .done-line{color:var(--down);font-weight:600;margin:0}
+.msg{font-size:14px;margin:10px 0 0;font-weight:600}
+.msg.err{color:var(--up)}.msg.ok{color:var(--down)}
+.progress{list-style:none;padding:0;margin:12px 0 0;font-size:15px}
+.progress li{margin:4px 0}
+
+/* viagens */
+.trip-list{display:grid;gap:12px;margin-bottom:22px}
+.trip-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:center}
+.trip-card h3{margin:0;font-size:17px}
+.trip-card p{margin:2px 0 0;color:var(--muted);font-size:14px}
+.trip-card .tag{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;margin-left:6px;background:var(--bg);color:var(--muted);vertical-align:2px}
+.trip-card .btns{display:flex;gap:8px;flex-wrap:wrap}
+.quota{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 18px;margin-bottom:22px}
+.bar{height:10px;border-radius:99px;background:var(--bg);overflow:hidden;margin-top:8px}
+.bar span{display:block;height:100%;background:var(--sea);border-radius:99px}
+.bar.over span{background:var(--up)}
+form.panel h2{margin-bottom:18px}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:12px 18px;border-radius:12px;font-weight:600;font-size:15px;max-width:90vw;z-index:20}
+
+@media (max-width:720px){
+  .pass{grid-template-columns:1fr}
+  .stub{border-left:0;border-top:2px dashed var(--line)}
+  .stub::before{top:-13px;left:-12px}.stub::after{top:-13px;bottom:auto;left:auto;right:-12px}
+  .facts{grid-template-columns:1fr 1fr}
+  .legs,.row{grid-template-columns:1fr}
+  .step{grid-template-columns:1fr}.step .body{grid-column:1}
+}
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div class="brand">✈️ Monitor de passagens</div>
+    <nav class="tabs" aria-label="Seções">
+      <button data-view="painel">Painel</button>
+      <button data-view="viagens">Viagens</button>
+      <button data-view="config">Configuração</button>
+    </nav>
+  </header>
+
+  <!-- ================= PAINEL ================= -->
+  <section id="view-painel" hidden>
+    <div id="painel-empty" class="empty" hidden>
+      <h1>Nenhuma viagem cadastrada</h1>
+      <p>Cadastre o trecho e as datas que você quer acompanhar. O monitor checa os preços sozinho e avisa no Telegram quando caírem.</p>
+      <button class="btn" data-goto="viagens">Cadastrar viagem</button>
+    </div>
+    <div id="painel-body">
+      <nav class="trips" id="trips" aria-label="Viagens"></nav>
+      <section class="pass" aria-label="Melhor opção atual">
+        <div class="pass-main">
+          <div class="route"><span id="r-o">—</span>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" transform="rotate(90 12 12)"/></svg>
+            <span id="r-d">—</span></div>
+          <div class="cities" id="trip-name"></div>
+          <div class="legs">
+            <div class="leg"><h3 id="ida-h">Ida</h3><p id="ida">—</p><small id="ida-d"></small></div>
+            <div class="leg" id="volta-leg"><h3 id="volta-h">Volta</h3><p id="volta">—</p><small id="volta-d"></small></div>
+          </div>
+        </div>
+        <div class="stub">
+          <div><div class="price" id="price">—</div><div class="price-note" id="price-note"></div></div>
+          <div class="delta" id="delta"></div>
+          <div class="verdict" id="verdict">Carregando…</div>
+        </div>
+      </section>
+      <dl class="facts">
+        <div><dt>Menor já visto</dt><dd id="f-min">—</dd></div>
+        <div><dt>Tendência 14 dias</dt><dd id="f-trend">—</dd></div>
+        <div><dt>Faltam</dt><dd id="f-days">—</dd></div>
+        <div><dt>Checagens</dt><dd id="f-count">—</dd></div>
+      </dl>
+      <section class="panel" id="chart-panel">
+        <div class="panel-head">
+          <h2>Preço ao longo do tempo</h2>
+          <div class="seg" role="group" aria-label="Período">
+            <button data-r="7">7 dias</button><button data-r="30">30 dias</button><button data-r="0" aria-pressed="true">Tudo</button>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="chart" aria-label="Gráfico do preço ao longo do tempo"></canvas></div>
+      </section>
+      <div class="table-wrap" id="table-wrap">
+        <table>
+          <thead><tr><th>Quando</th><th>Ida</th><th id="th-volta">Volta</th><th style="text-align:right">Total</th><th style="text-align:right" id="th-pref"></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="actions">
+        <a class="btn" id="buy" target="_blank" rel="noopener">Ver voos no Google Flights</a>
+        <button class="btn ghost" id="check-now" hidden>Checar agora</button>
+      </div>
+      <footer class="note" id="foot"></footer>
+    </div>
+  </section>
+
+  <!-- ================= VIAGENS ================= -->
+  <section id="view-viagens" hidden>
+    <div id="viagens-locked" class="empty" hidden>
+      <h1>Conclua a configuração primeiro</h1>
+      <p>Para cadastrar viagens, este aparelho precisa estar conectado à sua conta do GitHub. São quatro passos rápidos.</p>
+      <button class="btn" data-goto="config">Ir para a configuração</button>
+    </div>
+    <div id="viagens-body">
+      <h1>Suas viagens</h1>
+      <p class="lead">Cada viagem é checada nos horários que você escolher. Viagens com data já passada param sozinhas.</p>
+      <div class="quota">
+        <strong id="quota-text"></strong>
+        <div class="bar" id="quota-bar"><span></span></div>
+        <p class="hint">A busca gratuita permite 250 consultas por mês. Cada checagem gasta 2 consultas numa viagem de ida e volta e 1 numa viagem só de ida.</p>
+      </div>
+      <div class="trip-list" id="trip-list"></div>
+      <button class="btn" id="new-trip">+ Nova viagem</button>
+
+      <form class="panel" id="trip-form" hidden novalidate>
+        <h2 id="form-title">Nova viagem</h2>
+        <div class="field"><label for="t-nome">Nome da viagem <span class="hint">(opcional)</span></label>
+          <input type="text" id="t-nome" placeholder="Ex.: Natal no feriado"></div>
+        <div class="row">
+          <div class="field"><label for="t-origem">Saindo de</label>
+            <input type="text" id="t-origem" class="code" list="aeroportos" maxlength="3" placeholder="CGH" autocomplete="off">
+            <p class="hint">Código de 3 letras do aeroporto</p></div>
+          <div class="field"><label for="t-destino">Indo para</label>
+            <input type="text" id="t-destino" class="code" list="aeroportos" maxlength="3" placeholder="NAT" autocomplete="off"></div>
+        </div>
+        <div class="field checks" role="radiogroup" aria-label="Tipo de viagem">
+          <label><input type="radio" name="t-tipo" value="iv" checked> Ida e volta</label>
+          <label><input type="radio" name="t-tipo" value="i"> Só ida</label>
+        </div>
+        <div class="row">
+          <div class="field"><label for="t-ida">Data da ida</label><input type="date" id="t-ida">
+            <div class="inline" style="margin-top:8px"><span class="hint" style="margin:0">Partida entre</span>
+              <select id="t-ji0" aria-label="Hora inicial da ida"></select><span class="hint" style="margin:0">e</span><select id="t-ji1" aria-label="Hora final da ida"></select></div></div>
+          <div class="field" id="volta-fields"><label for="t-volta">Data da volta</label><input type="date" id="t-volta">
+            <div class="inline" style="margin-top:8px"><span class="hint" style="margin:0">Partida entre</span>
+              <select id="t-jv0" aria-label="Hora inicial da volta"></select><span class="hint" style="margin:0">e</span><select id="t-jv1" aria-label="Hora final da volta"></select></div></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="t-cia">Companhia preferida</label>
+            <select id="t-cia"><option value="">Qualquer (a mais barata)</option><option>LATAM</option><option>GOL</option><option>Azul</option></select>
+            <p class="hint">Outra companhia só é escolhida se for pelo menos 15% mais barata.</p></div>
+          <div class="field"><label for="t-adultos">Passageiros</label><input type="number" id="t-adultos" min="1" max="9" value="1"></div>
+        </div>
+        <div class="field"><label>Opções</label>
+          <div class="checks"><label><input type="checkbox" id="t-direto"> Só voos diretos</label></div></div>
+        <div class="field"><label>Checar preços</label>
+          <div class="checks" id="t-checagens">
+            <label><input type="checkbox" value="madrugada"> Madrugada (3h)</label>
+            <label><input type="checkbox" value="manha" checked> Manhã (8h)</label>
+            <label><input type="checkbox" value="tarde"> Tarde (14h)</label>
+            <label><input type="checkbox" value="noite" checked> Noite (20h)</label>
+          </div>
+          <p class="hint" id="form-quota"></p></div>
+        <div class="field" style="max-width:280px"><label for="t-queda">Avisar quando cair pelo menos (R$)</label>
+          <input type="number" id="t-queda" min="1" value="40"></div>
+        <p class="msg err" id="form-err" hidden></p>
+        <div class="actions" style="margin-top:8px">
+          <button class="btn" type="submit" id="form-save">Salvar viagem</button>
+          <button class="btn ghost" type="button" id="form-cancel">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ================= CONFIGURAÇÃO ================= -->
+  <section id="view-config" hidden>
+    <h1>Configuração</h1>
+    <p class="lead">Faça isto uma vez só. Você vai copiar três códigos de três sites diferentes e colar aqui. Os códigos ficam guardados de forma criptografada na sua conta do GitHub.</p>
+
+    <ol class="steps">
+      <li class="step" id="s1"><div class="n">1</div><div class="body">
+        <h2>Conectar ao GitHub</h2>
+        <p class="done-line" id="s1-done" hidden>Conectado a <span id="s1-repo"></span>. <button class="btn small ghost" id="s1-out">Desconectar este aparelho</button></p>
+        <div id="s1-form">
+          <ol>
+            <li>Toque em <strong>Gerar chave no GitHub</strong>. A página abre já preenchida.</li>
+            <li>Em <strong>Repository access</strong>, escolha <strong>Only select repositories</strong> e marque <strong id="s1-reponame">o repositório deste site</strong>.</li>
+            <li>Desça até o fim, toque em <strong>Generate token</strong> e copie o código que começa com <code>github_pat_</code>.</li>
+          </ol>
+          <div class="field" id="s1-repo-fields" hidden>
+            <div class="row"><div><label for="s1-owner">Seu usuário do GitHub</label><input type="text" id="s1-owner"></div>
+            <div><label for="s1-reponame-in">Nome do repositório</label><input type="text" id="s1-reponame-in" value="monitor-voo"></div></div>
+          </div>
+          <div class="actions" style="margin:0 0 14px"><a class="btn ghost" id="s1-link" target="_blank" rel="noopener">Gerar chave no GitHub</a></div>
+          <label for="s1-token">Cole a chave aqui</label>
+          <input type="password" id="s1-token" placeholder="github_pat_…" autocomplete="off">
+          <div class="actions" style="margin-top:12px"><button class="btn" id="s1-go">Conectar</button></div>
+          <p class="msg" id="s1-msg" hidden></p>
+        </div>
+      </div></li>
+
+      <li class="step" id="s2"><div class="n">2</div><div class="body">
+        <h2>Busca de preços (SerpApi)</h2>
+        <p class="done-line" id="s2-done" hidden>Configurada. <button class="btn small ghost" data-redo="s2">Trocar</button></p>
+        <div id="s2-form">
+          <ol>
+            <li>Crie uma conta grátis em <a href="https://serpapi.com/users/sign_up" target="_blank" rel="noopener">serpapi.com</a> e confirme o e-mail.</li>
+            <li>Abra <a href="https://serpapi.com/manage-api-key" target="_blank" rel="noopener">a página da sua chave</a> e copie o código <strong>Your Private API Key</strong>.</li>
+          </ol>
+          <label for="s2-key">Cole a chave aqui</label>
+          <input type="password" id="s2-key" autocomplete="off">
+          <div class="actions" style="margin-top:12px"><button class="btn" id="s2-go">Salvar</button></div>
+          <p class="msg" id="s2-msg" hidden></p>
+        </div>
+      </div></li>
+
+      <li class="step" id="s3"><div class="n">3</div><div class="body">
+        <h2>Alertas no Telegram</h2>
+        <p class="done-line" id="s3-done" hidden>Configurado. <button class="btn small ghost" data-redo="s3">Trocar</button></p>
+        <div id="s3-form">
+          <ol>
+            <li>No Telegram, abra o <a href="https://t.me/BotFather" target="_blank" rel="noopener">BotFather</a> e toque em <strong>Iniciar</strong>.</li>
+            <li>Envie <code>/newbot</code>. Escolha um nome qualquer e depois um usuário terminado em <code>bot</code> (ex.: <code>passagens_joao_bot</code>).</li>
+            <li>Ele responde com um código longo, parecido com <code>123456:ABC-xyz…</code>. Copie e cole aqui.</li>
+          </ol>
+          <label for="s3-token">Código do bot</label>
+          <input type="password" id="s3-token" autocomplete="off">
+          <div class="actions" style="margin-top:12px"><button class="btn" id="s3-go">Continuar</button></div>
+          <div id="s3-chat" hidden>
+            <p style="margin:16px 0 8px">Agora abra o seu bot, toque em <strong>Iniciar</strong> e mande um “oi”. Depois volte aqui.</p>
+            <div class="actions" style="margin:0"><a class="btn ghost" id="s3-open" target="_blank" rel="noopener">Abrir meu bot</a><button class="btn" id="s3-verify">Já mandei o oi</button></div>
+          </div>
+          <p class="msg" id="s3-msg" hidden></p>
+        </div>
+      </div></li>
+
+      <li class="step" id="s4"><div class="n">4</div><div class="body">
+        <h2>Ligar o monitor</h2>
+        <p class="done-line" id="s4-done" hidden>Monitor ligado. <button class="btn small ghost" id="s4-again">Reinstalar</button></p>
+        <div id="s4-form">
+          <p style="margin:0 0 12px">Instala o robô que checa os preços automaticamente às 3h, 8h, 14h e 20h.</p>
+          <button class="btn" id="s4-go">Ligar o monitor</button>
+          <ul class="progress" id="s4-progress"></ul>
+          <p class="msg" id="s4-msg" hidden></p>
+        </div>
+      </div></li>
+    </ol>
+  </section>
+
+  <datalist id="aeroportos"></datalist>
+</main>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<!-- arquivos que o app instala no repositório -->
+<script type="text/plain" id="file-monitor">#!/usr/bin/env python3
+"""
+Monitor de preço de passagens aéreas, para várias viagens.
+
+As viagens ficam em viagens.json. Para cada viagem ativa, consulta o Google Flights
+via SerpApi, guarda o histórico em data/<id>.csv, calcula tendência e manda
+alertas no Telegram.
+"""
+import csv
+import json
+import os
+import statistics
+from datetime import date, datetime, timedelta, timezone
+
+import requests
+
+BRT = timezone(timedelta(hours=-3))
+COTA_MENSAL = 250
+
+# horário (Brasília) de cada checagem; precisa bater com o cron do monitor.yml
+HORARIOS = {"madrugada": 3, "manha": 8, "tarde": 14, "noite": 20}
+
+# valores usados quando a viagem não define o campo
+PADRAO = {
+    "nome": None,
+    "volta": None,                    # null = só ida
+    "janela_ida": [0, 24],            # [hora inicial, hora final] da partida
+    "janela_volta": [0, 24],
+    "adultos": 1,
+    "companhia_preferida": None,      # ex.: "LATAM"; null = sempre a mais barata
+    "vantagem_minima_outra_cia": 0.15,
+    "max_paradas": None,              # null = qualquer; 0 = só direto; 1 = até 1 conexão
+    "alerta_queda_reais": 40,
+    "alerta_queda_pct": 0.04,
+    "checagens": ["manha", "tarde", "noite"],
+    "ativa": True,
+}
+
+CAMPOS = [
+    "timestamp", "total", "ida_preco", "ida_cia", "ida_horario", "ida_paradas",
+    "volta_preco", "volta_cia", "volta_horario", "volta_paradas",
+    "total_preferida", "total_mais_barato", "nivel_google_ida", "nivel_google_volta",
+    "recomendacao",
+]
+
+
+# ---------------------------------------------------------------- configuração
+def carregar_viagens():
+    if not os.path.exists("viagens.json"):
+        return []
+    with open("viagens.json", encoding="utf-8") as f:
+        brutas = json.load(f).get("viagens", [])
+    viagens = []
+    for b in brutas:
+        v = {**PADRAO, **b}
+        v["nome"] = v["nome"] or f"{v['origem']}-{v['destino']} {v['ida']}"
+        viagens.append(v)
+    return viagens
+
+
+def buscas_por_mes(v):
+    return (2 if v["volta"] else 1) * len(v["checagens"]) * 31
+
+
+def link_google(v):
+    base = f"https://www.google.com/travel/flights?q=Flights%20from%20{v['origem']}%20to%20{v['destino']}%20on%20{v['ida']}"
+    return base + (f"%20through%20{v['volta']}" if v["volta"] else "")
+
+
+def slot_atual(agora):
+    """Qual checagem é esta (o GitHub às vezes atrasa a execução alguns minutos)."""
+    minutos = agora.hour * 60 + agora.minute
+    def dist(h):
+        d = abs(minutos - h * 60)
+        return min(d, 1440 - d)
+    return min(HORARIOS, key=lambda s: dist(HORARIOS[s]))
+
+
+# ---------------------------------------------------------------- busca
+def buscar(v, origem, destino, data, janela):
+    params = {
+        "engine": "google_flights",
+        "departure_id": origem,
+        "arrival_id": destino,
+        "outbound_date": data,
+        "type": 2,
+        "adults": v["adultos"],
+        "currency": "BRL",
+        "gl": "br",
+        "hl": "en",
+        "api_key": os.environ["SERPAPI_KEY"],
+    }
+    if janela != [0, 24]:
+        params["outbound_times"] = f"{janela[0]},{max(janela[0], janela[1] - 1)}"
+    if v["max_paradas"] is not None:
+        params["stops"] = {0: 1, 1: 2, 2: 3}.get(v["max_paradas"], 0)
+
+    r = requests.get("https://serpapi.com/search.json", params=params, timeout=90)
+    r.raise_for_status()
+    dados = r.json()
+    if "error" in dados and not dados.get("best_flights") and not dados.get("other_flights"):
+        if "no results" not in dados["error"].lower():
+            raise RuntimeError(dados["error"])
+
+    opcoes = []
+    for grupo in ("best_flights", "other_flights"):
+        for o in dados.get(grupo) or []:
+            trechos = o.get("flights") or []
+            if not trechos or not o.get("price"):
+                continue
+            partida = trechos[0]["departure_airport"]["time"]  # "2027-02-18 07:30"
+            minutos = int(partida[11:13]) * 60 + int(partida[14:16])
+            if not (janela[0] * 60 <= minutos <= janela[1] * 60):
+                continue
+            opcoes.append({
+                "preco": float(o["price"]),
+                "cia": " / ".join(sorted({t.get("airline", "?") for t in trechos})),
+                "horario": f"{partida[11:16]}-{trechos[-1]['arrival_airport']['time'][11:16]}",
+                "paradas": len(trechos) - 1,
+            })
+    return opcoes, dados.get("price_insights") or {}
+
+
+def escolher(v, opcoes):
+    """Retorna (escolhida, melhor_da_preferida, mais_barata)."""
+    if not opcoes:
+        return None, None, None
+    mais_barata = min(opcoes, key=lambda o: o["preco"])
+    pref = v["companhia_preferida"]
+    prefs = [o for o in opcoes if pref and pref.lower() in o["cia"].lower()]
+    melhor_pref = min(prefs, key=lambda o: o["preco"]) if prefs else None
+    if melhor_pref is None:
+        return mais_barata, None, mais_barata
+    if mais_barata["preco"] <= melhor_pref["preco"] * (1 - v["vantagem_minima_outra_cia"]):
+        return mais_barata, melhor_pref, mais_barata
+    return melhor_pref, melhor_pref, mais_barata
+
+
+# ---------------------------------------------------------------- histórico
+def arq_hist(v):
+    return f"data/{v['id']}.csv"
+
+
+def ler_historico(v):
+    if not os.path.exists(arq_hist(v)):
+        return []
+    with open(arq_hist(v), newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def gravar(v, linha):
+    os.makedirs("data", exist_ok=True)
+    novo = not os.path.exists(arq_hist(v))
+    with open(arq_hist(v), "a", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=CAMPOS)
+        if novo:
+            w.writeheader()
+        w.writerow(linha)
+
+
+# ---------------------------------------------------------------- análise
+def tendencia(hist, atual, agora):
+    """Regressão linear sobre o menor preço de cada dia (últimos 14 dias)."""
+    por_dia = {}
+    for row in hist:
+        d = datetime.fromisoformat(row["timestamp"]).date()
+        val = float(row["total"])
+        por_dia[d] = min(val, por_dia.get(d, val))
+    por_dia[agora.date()] = min(atual, por_dia.get(agora.date(), atual))
+    dias = sorted(por_dia)[-14:]
+    if len(dias) < 4:
+        return "coletando dados", 0.0
+    xs = [(d - dias[0]).days for d in dias]
+    ys = [por_dia[d] for d in dias]
+    inclinacao = statistics.linear_regression(xs, ys).slope
+    rel = inclinacao / statistics.mean(ys)
+    if rel > 0.005:
+        return "subindo", inclinacao
+    if rel < -0.005:
+        return "caindo", inclinacao
+    return "estável", inclinacao
+
+
+def recomendar(atual, minimo_hist, rotulo, dias_p_voo, niveis):
+    niveis = [n for n in niveis if n]
+    google_baixo = bool(niveis) and all(n == "low" for n in niveis)
+    perto_do_min = minimo_hist is None or atual <= minimo_hist * 1.03
+    if dias_p_voo <= 21:
+        return "COMPRAR - faltam menos de 3 semanas, tarifas tendem a subir"
+    if perto_do_min and google_baixo:
+        return "COMPRAR - menor patamar registrado e Google classifica como preço baixo"
+    if perto_do_min and rotulo == "subindo":
+        return "COMPRAR - perto do mínimo e começando a subir"
+    if rotulo == "subindo" and dias_p_voo <= 60:
+        return "CONSIDERAR COMPRAR - tendência de alta a menos de 2 meses da viagem"
+    if rotulo == "caindo":
+        return "AGUARDAR - preço em queda"
+    return "AGUARDAR - monitorando"
+
+
+def melhor_horario(hist):
+    grupos = {}
+    for r in hist:
+        h = datetime.fromisoformat(r["timestamp"]).hour
+        faixa = "madrugada" if h < 7 else "manhã" if h < 12 else "tarde" if h < 18 else "noite"
+        grupos.setdefault(faixa, []).append(float(r["total"]))
+    medias = {f: statistics.mean(v) for f, v in grupos.items() if len(v) >= 5}
+    if len(medias) < 2:
+        return []
+    return ["Média por horário: " + ", ".join(f"{f} {brl(medias[f])}" for f in sorted(medias, key=medias.get))]
+
+
+def brl(v):
+    return f"R$ {v:,.0f}".replace(",", ".")
+
+
+def fmt_data(iso):
+    return date.fromisoformat(iso).strftime("%d/%m")
+
+
+# ---------------------------------------------------------------- Telegram
+def avisar(texto, silencioso=False):
+    token, chat = os.environ.get("TELEGRAM_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
+    print(texto, "\n")
+    if token and chat:
+        requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat, "text": texto, "disable_web_page_preview": True,
+                  "disable_notification": silencioso},
+            timeout=30,
+        )
+
+
+# ---------------------------------------------------------------- uma viagem
+def checar(v, agora):
+    dias_p_voo = (date.fromisoformat(v["ida"]) - agora.date()).days
+    hist = ler_historico(v)
+    madrugada = agora.hour < 7
+    primeira_do_dia = not madrugada and not any(
+        datetime.fromisoformat(r["timestamp"]).date() == agora.date()
+        and datetime.fromisoformat(r["timestamp"]).hour >= 7
+        for r in hist
+    )
+
+    ops_i, ins_i = buscar(v, v["origem"], v["destino"], v["ida"], v["janela_ida"])
+    esc_i, pref_i, bar_i = escolher(v, ops_i)
+    if v["volta"]:
+        ops_v, ins_v = buscar(v, v["destino"], v["origem"], v["volta"], v["janela_volta"])
+        esc_v, pref_v, bar_v = escolher(v, ops_v)
+    else:
+        ins_v, esc_v, pref_v, bar_v = {}, None, None, None
+
+    if not esc_i or (v["volta"] and not esc_v):
+        if primeira_do_dia:
+            avisar(f"⚠️ {v['nome']}: nenhum voo encontrado nas janelas de horário hoje.")
+        return
+
+    def soma(a, b):
+        return a["preco"] + (b["preco"] if b else 0)
+
+    total = soma(esc_i, esc_v)
+    total_pref = soma(pref_i, pref_v) if pref_i and (pref_v or not v["volta"]) else None
+    total_barato = soma(bar_i, bar_v)
+
+    anterior = float(hist[-1]["total"]) if hist else None
+    minimo_hist = min((float(r["total"]) for r in hist), default=None)
+    rotulo, incl = tendencia(hist, total, agora)
+    niveis = [ins_i.get("price_level"), ins_v.get("price_level")]
+    rec = recomendar(total, minimo_hist, rotulo, dias_p_voo, niveis)
+    rec_anterior = hist[-1]["recomendacao"] if hist else ""
+
+    gravar(v, {
+        "timestamp": agora.isoformat(timespec="minutes"),
+        "total": total,
+        "ida_preco": esc_i["preco"], "ida_cia": esc_i["cia"],
+        "ida_horario": esc_i["horario"], "ida_paradas": esc_i["paradas"],
+        "volta_preco": esc_v["preco"] if esc_v else "", "volta_cia": esc_v["cia"] if esc_v else "",
+        "volta_horario": esc_v["horario"] if esc_v else "", "volta_paradas": esc_v["paradas"] if esc_v else "",
+        "total_preferida": total_pref or "", "total_mais_barato": total_barato,
+        "nivel_google_ida": niveis[0] or "", "nivel_google_volta": niveis[1] or "",
+        "recomendacao": rec,
+    })
+
+    motivos = []
+    if anterior is not None:
+        queda = anterior - total
+        if queda >= v["alerta_queda_reais"] or queda >= anterior * v["alerta_queda_pct"]:
+            motivos.append(f"📉 Queda de {brl(queda)} desde a última checagem ({brl(anterior)})")
+    if minimo_hist is not None and total < minimo_hist:
+        motivos.append(f"🏆 Novo menor preço registrado (antes: {brl(minimo_hist)})")
+    if rec.startswith("COMPRAR") and not rec_anterior.startswith("COMPRAR"):
+        motivos.append("🛒 Sinal de compra")
+    if not hist:
+        motivos.append("✅ Monitor iniciado")
+    if not motivos and not primeira_do_dia:
+        print(f"{v['nome']}: sem novidades.")
+        return
+
+    def parada(n):
+        return "direto" if n == 0 else f"{n} parada(s)"
+
+    def trecho(rotulo_t, data, e):
+        return f"{rotulo_t} {fmt_data(data)}: {e['cia']} {e['horario']} ({parada(e['paradas'])}) - {brl(e['preco'])}"
+
+    faixa = ins_i.get("typical_price_range")
+    linhas = [
+        f"✈️ {v['nome']}",
+        *(motivos or ["☀️ Resumo diário"]),
+        "",
+        f"{v['origem']} → {v['destino']}  |  total {brl(total)}" + ("" if v["volta"] else " (só ida)"),
+        trecho("Ida", v["ida"], esc_i),
+    ]
+    if esc_v:
+        linhas.append(trecho("Volta", v["volta"], esc_v))
+    if total_pref and total_pref != total:
+        linhas.append(f"Só {v['companhia_preferida']}: {brl(total_pref)}")
+    if total_barato < total:
+        linhas.append(f"Mais barato de qualquer cia: {brl(total_barato)}")
+    linhas += [
+        "",
+        f"Tendência (14 dias): {rotulo}" + (f" ({brl(incl)}/dia)" if incl else ""),
+        f"Menor já visto: {brl(min(total, minimo_hist) if minimo_hist else total)}",
+        f"Google: ida '{niveis[0] or '?'}'" + (f", volta '{niveis[1] or '?'}'" if v["volta"] else "")
+        + (f" | faixa típica ida {brl(faixa[0])}-{brl(faixa[1])}" if faixa else ""),
+        f"Faltam {dias_p_voo} dias",
+        *melhor_horario(hist),
+        "",
+        f"👉 {rec}",
+        link_google(v),
+    ]
+    avisar("\n".join(linhas), silencioso=madrugada)
+
+
+def migrar_historico_antigo(viagens):
+    """Aproveita o data/historico.csv da versão anterior (uma viagem só)."""
+    antigo = "data/historico.csv"
+    if not os.path.exists(antigo) or not viagens or os.path.exists(arq_hist(viagens[0])):
+        return
+    with open(antigo, encoding="utf-8") as f:
+        conteudo = f.read().replace("total_latam", "total_preferida", 1)
+    with open(arq_hist(viagens[0]), "w", encoding="utf-8") as f:
+        f.write(conteudo)
+    os.remove(antigo)
+    print(f"Histórico antigo movido para {arq_hist(viagens[0])}")
+
+
+# ---------------------------------------------------------------- main
+def main():
+    agora = datetime.now(BRT)
+    manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+    slot = slot_atual(agora)
+    viagens = carregar_viagens()
+
+    ativas = [v for v in viagens if v["ativa"] and date.fromisoformat(v["ida"]) >= agora.date()]
+    uso = sum(buscas_por_mes(v) for v in ativas)
+    print(f"Checagem '{slot}'{' (manual)' if manual else ''} | uso estimado da cota: {uso}/{COTA_MENSAL} buscas/mês")
+    if uso > COTA_MENSAL:
+        print("ATENÇÃO: a soma das viagens passa da cota gratuita; reduza 'checagens' em alguma viagem.")
+
+    migrar_historico_antigo(viagens)
+
+    so_esta = os.environ.get("VIAGEM", "").strip()  # checagem manual de uma viagem só
+    for v in ativas:
+        if manual and so_esta and v["id"] != so_esta:
+            continue
+        if not manual and slot not in v["checagens"]:
+            continue
+        try:
+            checar(v, agora)
+        except Exception as e:  # uma viagem com erro não derruba as outras
+            print(f"Erro em {v['nome']}: {e}")
+
+
+if __name__ == "__main__":
+    main()
+</script>
+<script type="text/plain" id="file-workflow">name: Monitor de passagens
+
+on:
+  schedule:
+    - cron: "0 6,11,17,23 * * *"   # 03h, 08h, 14h e 20h (horário de Brasília)
+  workflow_dispatch:
+    inputs:
+      viagem:
+        description: "id de uma viagem (vazio = todas)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency: monitor-voo
+
+jobs:
+  checar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python monitor.py
+        env:
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          VIAGEM: ${{ inputs.viagem }}
+      - name: Salvar histórico
+        run: |
+          git config user.name "monitor-voo"
+          git config user.email "monitor-voo@users.noreply.github.com"
+          git add data/ || true
+          git diff --cached --quiet && exit 0
+          git commit -m "preços $(date -u +%F_%H%M)"
+          git pull --rebase -q && git push
+</script>
+<script type="text/plain" id="file-reqs">requests>=2.31
+</script>
+
+<script>
+/* ---------------------------------------------------------------- utilidades */
+const $ = id => document.getElementById(id);
+const brl = v => v == null || isNaN(v) ? "—" : "R$ " + Math.round(v).toLocaleString("pt-BR");
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const HORAS = {madrugada:"3h", manha:"8h", tarde:"14h", noite:"20h"};
+const PADRAO = {volta:null, janela_ida:[0,24], janela_volta:[0,24], adultos:1, companhia_preferida:null, max_paradas:null,
+  alerta_queda_reais:40, checagens:["manha","tarde","noite"], ativa:true};
+const COTA = 250;
+const AEROPORTOS = {CGH:"São Paulo (Congonhas)",GRU:"São Paulo (Guarulhos)",VCP:"Campinas (Viracopos)",SDU:"Rio (Santos Dumont)",GIG:"Rio (Galeão)",
+  BSB:"Brasília",CNF:"Belo Horizonte (Confins)",PLU:"Belo Horizonte (Pampulha)",SSA:"Salvador",REC:"Recife",FOR:"Fortaleza",NAT:"Natal",
+  JPA:"João Pessoa",MCZ:"Maceió",AJU:"Aracaju",SLZ:"São Luís",THE:"Teresina",BEL:"Belém",MAO:"Manaus",POA:"Porto Alegre",CWB:"Curitiba",
+  FLN:"Florianópolis",NVT:"Navegantes",JOI:"Joinville",IGU:"Foz do Iguaçu",LDB:"Londrina",MGF:"Maringá",VIX:"Vitória",GYN:"Goiânia",
+  CGB:"Cuiabá",CGR:"Campo Grande",PMW:"Palmas",BPS:"Porto Seguro",IOS:"Ilhéus",UDI:"Uberlândia",RAO:"Ribeirão Preto",SJP:"São José do Rio Preto",
+  FEN:"Fernando de Noronha",JDO:"Juazeiro do Norte",PVH:"Porto Velho",RBR:"Rio Branco",MCP:"Macapá",BVB:"Boa Vista",STM:"Santarém",
+  EZE:"Buenos Aires (Ezeiza)",AEP:"Buenos Aires (Aeroparque)",SCL:"Santiago",MVD:"Montevidéu",LIS:"Lisboa",MIA:"Miami",MCO:"Orlando"};
+$("aeroportos").innerHTML = Object.entries(AEROPORTOS).map(([k,v]) => `<option value="${k}">${v}</option>`).join("");
+
+function toast(t, ms=3500){ const el=$("toast"); el.textContent=t; el.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>el.hidden=true, ms); }
+function msg(id, text, kind){ const el=$(id); el.hidden=!text; el.textContent=text||""; el.className="msg "+(kind||""); }
+const utf8 = s => new TextEncoder().encode(s);
+function b64(bytes){ let s=""; for (let i=0;i<bytes.length;i++) s+=String.fromCharCode(bytes[i]); return btoa(s); }
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------------------------------------------------------------- repositório e chave */
+const store = { get(k){ try { return localStorage.getItem(k); } catch { return null; } },
+                set(k,v){ try { v==null ? localStorage.removeItem(k) : localStorage.setItem(k,v); } catch {} } };
+let OWNER = store.get("mp-owner"), REPO = store.get("mp-repo"), TOKEN = store.get("mp-token");
+const onPages = location.hostname.endsWith("github.io");
+if (onPages) { OWNER = location.hostname.split(".")[0]; REPO = location.pathname.split("/")[1] || `${OWNER}.github.io`; }
+const connected = () => !!(TOKEN && OWNER && REPO);
+
+async function gh(path, opts={}){
+  const r = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}${path}`, {
+    method: opts.method || "GET", cache: "no-store",
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+    headers: { Authorization: `Bearer ${TOKEN}`, "X-GitHub-Api-Version": "2022-11-28",
+      Accept: opts.raw ? "application/vnd.github.raw+json" : "application/vnd.github+json",
+      ...(opts.body ? {"Content-Type":"application/json"} : {}) } });
+  if (!r.ok) { const e = new Error(`GitHub respondeu ${r.status}`); e.status = r.status; throw e; }
+  const text = await r.text();
+  if (opts.raw) return text;
+  return text ? JSON.parse(text) : null;
+}
+async function readFile(path){
+  try {
+    if (connected()) return await gh(`/contents/${path}`, {raw:true});
+    const r = await fetch(`${path}?t=${Date.now()}`); return r.ok ? r.text() : null;
+  } catch (e) { if (e.status === 404) return null; throw e; }
+}
+async function writeFile(path, text, message){
+  let sha;
+  try { sha = (await gh(`/contents/${path}`)).sha; } catch (e) { if (e.status !== 404) throw e; }
+  await gh(`/contents/${path}`, {method:"PUT", body:{message, content:b64(utf8(text)), ...(sha?{sha}:{})}});
+}
+
+/* criptografia exigida pelo GitHub para guardar segredos (sealed box: X25519 + XSalsa20-Poly1305, nonce BLAKE2b) */
+function blake2b(input, outlen){
+  const M=(1n<<64n)-1n;
+  const IV=[0x6a09e667f3bcc908n,0xbb67ae8584caa73bn,0x3c6ef372fe94f82bn,0xa54ff53a5f1d36f1n,0x510e527fade682d1n,0x9b05688c2b3e6c1fn,0x1f83d9abfb41bd6bn,0x5be0cd19137e2179n];
+  const S=[[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],[14,10,4,8,9,15,13,6,1,12,0,2,11,7,5,3],[11,8,12,0,5,2,15,13,10,14,3,6,7,1,9,4],[7,9,3,1,13,12,11,14,2,6,5,10,4,0,15,8],[9,0,5,7,2,4,10,15,14,1,11,12,6,8,3,13],[2,12,6,10,0,11,8,3,4,13,7,5,15,14,1,9],[12,5,1,15,14,13,4,10,0,7,6,3,9,2,8,11],[13,11,7,14,12,1,3,9,5,0,15,4,8,6,2,10],[6,15,14,9,11,3,0,8,12,2,13,7,1,4,10,5],[10,2,8,4,7,6,1,5,15,11,9,14,3,12,13,0]];
+  const rotr=(x,n)=>((x>>BigInt(n))|(x<<BigInt(64-n)))&M;
+  const h=IV.slice(); h[0]^=0x01010000n^BigInt(outlen);
+  const blocks=Math.max(1,Math.ceil(input.length/128)); let t=0n;
+  for(let b=0;b<blocks;b++){
+    const blk=new Uint8Array(128), chunk=input.subarray(b*128,(b+1)*128); blk.set(chunk); t+=BigInt(chunk.length);
+    const m=[]; for(let i=0;i<16;i++){let w=0n;for(let j=7;j>=0;j--)w=(w<<8n)|BigInt(blk[i*8+j]);m.push(w);}
+    const v=[...h,...IV]; v[12]^=t&M; v[13]^=t>>64n; if(b===blocks-1) v[14]^=M;
+    const G=(a,b,c,d,x,y)=>{v[a]=(v[a]+v[b]+x)&M;v[d]=rotr(v[d]^v[a],32);v[c]=(v[c]+v[d])&M;v[b]=rotr(v[b]^v[c],24);v[a]=(v[a]+v[b]+y)&M;v[d]=rotr(v[d]^v[a],16);v[c]=(v[c]+v[d])&M;v[b]=rotr(v[b]^v[c],63);};
+    for(let r=0;r<12;r++){const s=S[r%10];G(0,4,8,12,m[s[0]],m[s[1]]);G(1,5,9,13,m[s[2]],m[s[3]]);G(2,6,10,14,m[s[4]],m[s[5]]);G(3,7,11,15,m[s[6]],m[s[7]]);G(0,5,10,15,m[s[8]],m[s[9]]);G(1,6,11,12,m[s[10]],m[s[11]]);G(2,7,8,13,m[s[12]],m[s[13]]);G(3,4,9,14,m[s[14]],m[s[15]]);}
+    for(let i=0;i<8;i++) h[i]^=v[i]^v[i+8];
+  }
+  const out=new Uint8Array(outlen); for(let i=0;i<outlen;i++) out[i]=Number((h[i>>3]>>BigInt(8*(i&7)))&0xffn); return out;
+}
+function sealBox(msgBytes, pk){
+  const ek=nacl.box.keyPair(), n=new Uint8Array(64); n.set(ek.publicKey); n.set(pk,32);
+  const c=nacl.box(msgBytes, blake2b(n,24), pk, ek.secretKey), o=new Uint8Array(32+c.length);
+  o.set(ek.publicKey); o.set(c,32); return o;
+}
+async function setSecret(name, value){
+  const {key, key_id} = await gh("/actions/secrets/public-key");
+  await gh(`/actions/secrets/${name}`, {method:"PUT", body:{encrypted_value: b64(sealBox(utf8(value), unb64(key))), key_id}});
+}
+async function runCheck(viagemId){
+  const repo = await gh("");
+  for (let i=0;i<4;i++) {
+    try { await gh("/actions/workflows/monitor.yml/dispatches", {method:"POST", body:{ref:repo.default_branch, inputs:{viagem:viagemId||""}}}); return; }
+    catch (e) { if (e.status !== 404 && e.status !== 422 || i === 3) throw e; await new Promise(r=>setTimeout(r, 4000)); }
+  }
+}
+
+/* ---------------------------------------------------------------- viagens */
+let trips = [];
+const day = iso => new Date(iso + "T12:00:00-03:00");
+const today = () => new Date(new Date().toLocaleDateString("en-CA",{timeZone:"America/Sao_Paulo"}) + "T00:00:00-03:00");
+const isoToday = () => new Date().toLocaleDateString("en-CA",{timeZone:"America/Sao_Paulo"});
+const encerrada = v => day(v.ida) < today();
+const usoMes = v => (v.volta ? 2 : 1) * v.checagens.length * 31;
+const usoTotal = (lista, excluirId) => lista.filter(v => v.ativa && !encerrada(v) && v.id !== excluirId).reduce((s,v)=>s+usoMes(v),0);
+const nomeDe = v => v.nome || `${v.origem} → ${v.destino}`;
+const fmtDate = iso => day(iso).toLocaleDateString("pt-BR",{weekday:"short",day:"numeric",month:"short",year:"numeric"}).replace(/\./g,"");
+const fmtShort = iso => day(iso).toLocaleDateString("pt-BR",{day:"numeric",month:"short"}).replace(/\./g,"");
+
+async function loadTrips(){
+  const text = await readFile("viagens.json");
+  let raw = [];
+  try { raw = text ? (JSON.parse(text).viagens || []) : []; } catch { raw = []; }
+  trips = raw.map(v => ({...PADRAO, ...v}));
+  return trips;
+}
+async function saveTrips(message){
+  const limpo = trips.map(v => { const o = {...v}; for (const k of Object.keys(o)) if (o[k] === null || o[k] === "") delete o[k]; return o; });
+  await writeFile("viagens.json", JSON.stringify({viagens: limpo}, null, 2) + "\n", message);
+}
+
+/* ---------------------------------------------------------------- navegação */
+let current = "painel";
+function show(view){
+  current = view;
+  document.querySelectorAll("main > section").forEach(s => s.hidden = s.id !== "view-" + view);
+  document.querySelectorAll(".tabs button").forEach(b => b.dataset.view === view ? b.setAttribute("aria-current","page") : b.removeAttribute("aria-current"));
+  if (view === "painel") renderPainel();
+  if (view === "viagens") renderViagens();
+  if (view === "config") renderConfig();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => show(b.dataset.view));
+document.addEventListener("click", e => { const g = e.target.closest("[data-goto]"); if (g) show(g.dataset.goto); });
+
+/* ---------------------------------------------------------------- painel */
+let chart, rowsAll = [], trip;
+function parseCSV(text){
+  const lines = text.trim().split(/\r?\n/), head = lines.shift().split(",");
+  return lines.map(l => {
+    const out = [], re = /("([^"]|"")*"|[^,]*)(,|$)/g; let m;
+    while ((m = re.exec(l)) && out.length < head.length) { out.push(m[1].replace(/^"|"$/g,"").replace(/""/g,'"')); if (!m[3]) break; }
+    const o = {}; head.forEach((h,i)=>o[h]=out[i] ?? ""); return o;
+  });
+}
+function trend(rows){
+  const byDay = {};
+  rows.forEach(r => { const d = r.t.toISOString().slice(0,10); byDay[d] = Math.min(r.total, byDay[d] ?? Infinity); });
+  const days = Object.keys(byDay).sort().slice(-14);
+  if (days.length < 4) return {label:"coletando", slope:0};
+  const x = days.map(d => (new Date(d) - new Date(days[0])) / 864e5), y = days.map(d => byDay[d]);
+  const mx = x.reduce((a,b)=>a+b)/x.length, my = y.reduce((a,b)=>a+b)/y.length;
+  const slope = x.reduce((s,xi,i)=>s+(xi-mx)*(y[i]-my),0) / x.reduce((s,xi)=>s+(xi-mx)**2,0);
+  const rel = slope/my;
+  return {label: rel>.005 ? "subindo" : rel<-.005 ? "caindo" : "estável", slope};
+}
+const fmtWhen = d => d.toLocaleString("pt-BR",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
+const stops = n => +n === 0 ? "direto" : `${n} parada${+n>1?"s":""}`;
+
+function draw(range){
+  const rows = range ? rowsAll.filter(r => r.t >= Date.now() - range*864e5) : rowsAll;
+  const minV = Math.min(...rowsAll.map(r=>r.total));
+  const ds = (label, key, color, extra={}) => ({label, data: rows.map(r => r[key] || null), borderColor: color, backgroundColor: color,
+    pointRadius: rows.length > 60 ? 0 : 3, pointHoverRadius:5, borderWidth:2, tension:.25, spanGaps:true, ...extra});
+  const sets = [ds("Melhor opção", "total", css("--sea"), {borderWidth:3, fill:{target:"origin",above:css("--sea")+"1A"}})];
+  if (trip.companhia_preferida) sets.push(ds("Só " + trip.companhia_preferida, "pref", css("--sky"), {borderDash:[6,4]}));
+  sets.push(ds("Mais barato (qualquer cia)", "cheap", css("--dune")),
+    {label:"Menor já visto", data: rows.map(()=>minV), borderColor: css("--down"), borderWidth:1, borderDash:[2,4], pointRadius:0});
+  const data = {labels: rows.map(r => fmtWhen(r.t)), datasets: sets};
+  if (chart) { chart.data = data; chart.update(); return; }
+  Chart.defaults.font.family = '"Instrument Sans", system-ui, sans-serif';
+  Chart.defaults.color = css("--muted");
+  chart = new Chart($("chart"), {type:"line", data, options:{
+    maintainAspectRatio:false, interaction:{mode:"index", intersect:false},
+    plugins:{legend:{position:"bottom", labels:{usePointStyle:true, boxWidth:8}},
+             tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${brl(c.parsed.y)}`}}},
+    scales:{x:{grid:{display:false}, ticks:{maxTicksLimit:7, maxRotation:0}},
+            y:{grid:{color:css("--line")}, ticks:{callback:v=>brl(v)}}}
+  }});
+}
+function resetPass(){
+  ["price","ida","volta","f-min","f-trend","f-days","f-count"].forEach(id => $(id).textContent = "—");
+  ["ida-d","volta-d","delta","rows"].forEach(id => $(id).textContent = "");
+  $("verdict").className = "verdict";
+  if (chart) { chart.destroy(); chart = null; }
+  rowsAll = [];
+  document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x.dataset.r === "0"));
+}
+
+async function renderPainel(){
+  try { await loadTrips(); } catch { trips = []; }
+  const lista = [...trips].sort((a,b) => encerrada(a) - encerrada(b) || a.ida.localeCompare(b.ida));
+  $("painel-empty").hidden = lista.length > 0;
+  $("painel-body").hidden = lista.length === 0;
+  if (!lista.length) return;
+  $("trips").innerHTML = lista.map(v => `<button data-id="${esc(v.id)}">${esc(nomeDe(v))}${encerrada(v) ? ' <span class="off">encerrada</span>' : !v.ativa ? ' <span class="off">pausada</span>' : ""}</button>`).join("");
+  $("trips").hidden = lista.length < 2;
+  $("trips").onclick = e => { const b = e.target.closest("button"); if (b) showTrip(lista.find(v => v.id === b.dataset.id)); };
+  showTrip(lista.find(v => "#" + v.id === location.hash) || lista[0]);
+}
+
+async function showTrip(v){
+  trip = v; resetPass();
+  history.replaceState(null, "", "#" + v.id);
+  document.querySelectorAll("#trips button").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === v.id));
+  $("r-o").textContent = v.origem; $("r-d").textContent = v.destino;
+  $("trip-name").textContent = [v.nome, `${AEROPORTOS[v.origem]||v.origem} para ${AEROPORTOS[v.destino]||v.destino}`].filter(Boolean).join(" · ");
+  $("ida-h").textContent = "Ida · " + fmtDate(v.ida);
+  $("volta-leg").hidden = !v.volta; $("th-volta").hidden = !v.volta;
+  if (v.volta) $("volta-h").textContent = "Volta · " + fmtDate(v.volta);
+  $("price-note").textContent = `${v.volta ? "ida e volta" : "só ida"}, ${v.adultos} adulto${v.adultos>1?"s":""}`;
+  $("th-pref").textContent = v.companhia_preferida ? "Só " + v.companhia_preferida : "";
+  $("buy").href = `https://www.google.com/travel/flights?q=Flights%20from%20${v.origem}%20to%20${v.destino}%20on%20${v.ida}` + (v.volta ? `%20through%20${v.volta}` : "");
+  $("check-now").hidden = !connected() || encerrada(v);
+  const status = encerrada(v) ? "Monitoramento encerrado." : !v.ativa ? "Viagem pausada." : `Checagens às ${v.checagens.map(c => HORAS[c]).join(", ")}.`;
+  $("foot").textContent = status;
+
+  let text = null;
+  try { text = await readFile(`data/${v.id}.csv`); } catch {}
+  if (trip !== v) return;
+  const temDados = !!text && text.trim().split("\n").length > 1;
+  $("chart-panel").hidden = $("table-wrap").hidden = !temDados;
+  if (!temDados) {
+    $("verdict").textContent = encerrada(v) ? "Sem histórico para esta viagem." : "Aguardando a primeira checagem.";
+    return;
+  }
+  rowsAll = parseCSV(text).map(r => ({...r, t:new Date(r.timestamp), total:+r.total,
+          pref: +(r.total_preferida || r.total_latam) || null, cheap: +r.total_mais_barato}))
+        .filter(r => !isNaN(r.total));
+  if (!rowsAll.length) return;
+
+  const last = rowsAll.at(-1), prev = rowsAll.at(-2), min = Math.min(...rowsAll.map(r=>r.total));
+  $("price").textContent = brl(last.total);
+  $("ida").textContent = `${last.ida_cia} · ${brl(+last.ida_preco)}`;
+  $("ida-d").textContent = `${last.ida_horario} · ${stops(last.ida_paradas)}`;
+  if (v.volta) {
+    $("volta").textContent = `${last.volta_cia} · ${brl(+last.volta_preco)}`;
+    $("volta-d").textContent = `${last.volta_horario} · ${stops(last.volta_paradas)}`;
+  }
+  if (prev) {
+    const d = last.total - prev.total;
+    $("delta").textContent = d === 0 ? "Igual à checagem anterior" : `${d<0?"▼":"▲"} ${brl(Math.abs(d))} desde a checagem anterior`;
+    $("delta").className = "delta " + (d<0 ? "down" : d>0 ? "up" : "");
+  }
+  $("verdict").textContent = encerrada(v) ? "Monitoramento encerrado" : (last.recomendacao || "Monitorando");
+  if (!encerrada(v) && (last.recomendacao||"").includes("COMPRAR")) $("verdict").classList.add("buy");
+  const t = trend(rowsAll);
+  $("f-min").textContent = brl(min);
+  $("f-trend").innerHTML = t.label + (t.slope ? `<small>${t.slope<0?"−":"+"}${brl(Math.abs(t.slope))} por dia</small>` : "");
+  $("f-days").textContent = Math.max(0, Math.round((day(v.ida) - today())/864e5)) + " dias";
+  $("f-count").textContent = rowsAll.length;
+  $("foot").textContent = `Última checagem: ${fmtWhen(last.t)}. ${status}`;
+  $("rows").innerHTML = rowsAll.slice(-15).reverse().map(r => `<tr>
+    <td>${fmtWhen(r.t)}</td><td>${esc(r.ida_cia)} ${esc(r.ida_horario)}</td>${v.volta ? `<td>${esc(r.volta_cia)} ${esc(r.volta_horario)}</td>` : ""}
+    <td class="num">${brl(r.total)}</td><td class="num">${v.companhia_preferida ? brl(r.pref) : ""}</td></tr>`).join("");
+  draw(0);
+}
+document.querySelectorAll(".seg button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x===b));
+  draw(+b.dataset.r);
+});
+$("check-now").onclick = async () => {
+  const btn = $("check-now"); btn.disabled = true; btn.textContent = "Checando…";
+  try {
+    await runCheck(trip.id);
+    toast("Checagem iniciada. O resultado aparece aqui em cerca de 1 minuto.", 6000);
+    const v = trip;
+    setTimeout(() => { if (trip === v && current === "painel") showTrip(v); }, 75000);
+  } catch (e) { toast("Não foi possível iniciar a checagem. Confira a Configuração."); }
+  setTimeout(() => { btn.disabled = false; btn.textContent = "Checar agora"; }, 75000);
+};
+
+/* ---------------------------------------------------------------- viagens: lista e formulário */
+const hourOpts = (sel, from, to, val) => { sel.innerHTML = ""; for (let h=from; h<=to; h++) sel.add(new Option(h+"h", h)); sel.value = val; };
+hourOpts($("t-ji0"),0,23,0); hourOpts($("t-ji1"),1,24,24); hourOpts($("t-jv0"),0,23,0); hourOpts($("t-jv1"),1,24,24);
+let editingId = null;
+
+function quotaUI(){
+  const uso = usoTotal(trips);
+  $("quota-text").textContent = `${uso} de ${COTA} consultas por mês em uso`;
+  $("quota-bar").firstElementChild.style.width = Math.min(100, uso/COTA*100) + "%";
+  $("quota-bar").classList.toggle("over", uso > COTA);
+}
+
+async function renderViagens(){
+  $("viagens-locked").hidden = connected();
+  $("viagens-body").hidden = !connected();
+  if (!connected()) return;
+  $("trip-form").hidden = true; $("new-trip").hidden = false;
+  $("trip-list").innerHTML = "<p class='hint'>Carregando…</p>";
+  try { await loadTrips(); } catch (e) { $("trip-list").innerHTML = `<p class="msg err">Não consegui ler suas viagens (${esc(e.message)}). Confira a Configuração.</p>`; return; }
+  quotaUI();
+  const lista = [...trips].sort((a,b) => encerrada(a) - encerrada(b) || a.ida.localeCompare(b.ida));
+  $("trip-list").innerHTML = lista.length ? lista.map(v => {
+    const tag = encerrada(v) ? "encerrada" : !v.ativa ? "pausada" : "";
+    const datas = fmtShort(v.ida) + (v.volta ? ` a ${fmtShort(v.volta)}` : " (só ida)");
+    const quando = v.checagens.map(c => HORAS[c]).join(", ");
+    return `<div class="trip-card"><div>
+        <h3>${esc(nomeDe(v))}${tag ? `<span class="tag">${tag}</span>` : ""}</h3>
+        <p>${esc(v.origem)} → ${esc(v.destino)} · ${datas}${v.companhia_preferida ? " · prefere " + esc(v.companhia_preferida) : ""}</p>
+        <p>Checa às ${quando} · ${usoMes(v)} consultas/mês</p></div>
+      <div class="btns">
+        ${encerrada(v) ? "" : `<button class="btn small ghost" data-act="edit" data-id="${esc(v.id)}">Editar</button>
+        <button class="btn small ghost" data-act="pause" data-id="${esc(v.id)}">${v.ativa ? "Pausar" : "Retomar"}</button>`}
+        <button class="btn small danger" data-act="del" data-id="${esc(v.id)}">Excluir</button></div></div>`;
+  }).join("") : "<p class='hint'>Nenhuma viagem ainda. Toque em Nova viagem para começar.</p>";
+}
+
+$("trip-list").onclick = async e => {
+  const b = e.target.closest("button[data-act]"); if (!b) return;
+  const v = trips.find(t => t.id === b.dataset.id);
+  if (b.dataset.act === "edit") return openForm(v);
+  if (b.dataset.act === "pause") {
+    if (!v.ativa && usoTotal(trips) + usoMes(v) > COTA) return toast("Retomar esta viagem passaria do limite gratuito. Reduza as checagens de outra viagem antes.", 6000);
+    v.ativa = !v.ativa;
+  }
+  if (b.dataset.act === "del") {
+    if (!confirm(`Excluir a viagem “${nomeDe(v)}”? O histórico de preços continua guardado no GitHub.`)) return;
+    trips = trips.filter(t => t !== v);
+  }
+  b.disabled = true;
+  try { await saveTrips(`viagem ${b.dataset.act === "del" ? "excluída" : "atualizada"}: ${v.id}`); toast("Pronto."); }
+  catch (err) { toast("Não consegui salvar: " + err.message); }
+  renderViagens();
+};
+
+function setTipo(iv){ document.querySelector(`input[name=t-tipo][value=${iv ? "iv" : "i"}]`).checked = true; $("volta-fields").hidden = !iv; formQuota(); }
+document.querySelectorAll("input[name=t-tipo]").forEach(r => r.onchange = () => setTipo(r.value === "iv"));
+const checagensSel = () => [...$("t-checagens").querySelectorAll("input:checked")].map(i => i.value);
+
+function formQuota(){
+  const iv = document.querySelector("input[name=t-tipo]:checked").value === "iv";
+  const esta = (iv ? 2 : 1) * checagensSel().length * 31;
+  const outras = usoTotal(trips, editingId);
+  const total = esta + outras;
+  $("form-quota").textContent = `Esta viagem usa ${esta} consultas por mês. Com as outras viagens, o total fica em ${total} de ${COTA}.` + (total > COTA ? " Passa do limite gratuito: desmarque alguns horários." : "");
+  $("form-quota").style.color = total > COTA ? "var(--up)" : "";
+  return total;
+}
+$("t-checagens").onchange = formQuota;
+
+function openForm(v){
+  editingId = v ? v.id : null;
+  $("form-title").textContent = v ? "Editar viagem" : "Nova viagem";
+  $("t-nome").value = v?.nome || "";
+  $("t-origem").value = v?.origem || ""; $("t-destino").value = v?.destino || "";
+  $("t-ida").value = v?.ida || ""; $("t-volta").value = v?.volta || "";
+  $("t-ida").min = $("t-volta").min = isoToday();
+  const ji = v?.janela_ida || [0,24], jv = v?.janela_volta || [0,24];
+  $("t-ji0").value = ji[0]; $("t-ji1").value = ji[1]; $("t-jv0").value = jv[0]; $("t-jv1").value = jv[1];
+  $("t-cia").value = v?.companhia_preferida || ""; $("t-adultos").value = v?.adultos || 1;
+  $("t-direto").checked = v?.max_paradas === 0;
+  $("t-queda").value = v?.alerta_queda_reais || 40;
+  const ch = v?.checagens || ["manha","noite"];
+  $("t-checagens").querySelectorAll("input").forEach(i => i.checked = ch.includes(i.value));
+  setTipo(v ? !!v.volta : true);
+  msg("form-err", "");
+  $("trip-form").hidden = false; $("new-trip").hidden = true;
+  $("trip-form").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+}
+$("new-trip").onclick = () => openForm(null);
+$("form-cancel").onclick = () => { $("trip-form").hidden = true; $("new-trip").hidden = false; };
+["t-origem","t-destino"].forEach(id => $(id).addEventListener("input", e => e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g,"")));
+
+$("trip-form").onsubmit = async e => {
+  e.preventDefault();
+  const iv = document.querySelector("input[name=t-tipo]:checked").value === "iv";
+  const v = {
+    nome: $("t-nome").value.trim() || null,
+    origem: $("t-origem").value.trim(), destino: $("t-destino").value.trim(),
+    ida: $("t-ida").value, janela_ida: [+$("t-ji0").value, +$("t-ji1").value],
+    volta: iv ? $("t-volta").value : null, janela_volta: iv ? [+$("t-jv0").value, +$("t-jv1").value] : null,
+    adultos: Math.max(1, +$("t-adultos").value || 1),
+    companhia_preferida: $("t-cia").value || null,
+    max_paradas: $("t-direto").checked ? 0 : null,
+    alerta_queda_reais: Math.max(1, +$("t-queda").value || 40),
+    checagens: checagensSel(), ativa: true,
+  };
+  const erro =
+    !/^[A-Z]{3}$/.test(v.origem) ? "Informe o aeroporto de saída com 3 letras (ex.: CGH)." :
+    !/^[A-Z]{3}$/.test(v.destino) ? "Informe o aeroporto de destino com 3 letras (ex.: NAT)." :
+    v.origem === v.destino ? "Saída e destino precisam ser diferentes." :
+    !v.ida ? "Escolha a data da ida." :
+    v.ida < isoToday() ? "A data da ida já passou." :
+    iv && !v.volta ? "Escolha a data da volta, ou marque Só ida." :
+    iv && v.volta < v.ida ? "A volta precisa ser no mesmo dia ou depois da ida." :
+    v.janela_ida[0] >= v.janela_ida[1] || (iv && v.janela_volta[0] >= v.janela_volta[1]) ? "O horário final da partida precisa ser depois do inicial." :
+    !v.checagens.length ? "Marque pelo menos um horário de checagem." :
+    formQuota() > COTA ? "Essa combinação passa do limite gratuito de 250 consultas por mês. Desmarque alguns horários ou pause outra viagem." : "";
+  if (erro) return msg("form-err", erro, "err");
+  if (v.janela_ida.join() === "0,24") v.janela_ida = null;
+  if (!iv || v.janela_volta?.join() === "0,24") v.janela_volta = null;
+
+  const btn = $("form-save"); btn.disabled = true; btn.textContent = "Salvando…";
+  try {
+    await loadTrips(); // pega a versão mais recente antes de salvar
+    if (editingId) {
+      const i = trips.findIndex(t => t.id === editingId);
+      trips[i] = {...PADRAO, ...trips[i], ...v, id: editingId, ativa: trips[i].ativa};
+    } else {
+      const base = `${v.origem}-${v.destino}-${v.ida}`.toLowerCase();
+      let id = base, n = 2; while (trips.some(t => t.id === id)) id = `${base}-${n++}`;
+      trips.push({...PADRAO, ...v, id});
+      editingId = id;
+    }
+    await saveTrips(`viagem salva: ${editingId}`);
+    const id = editingId;
+    try { await runCheck(id); toast("Viagem salva. A primeira checagem já começou e aparece no Painel em cerca de 1 minuto.", 7000); }
+    catch { toast("Viagem salva. A primeira checagem acontece no próximo horário programado.", 6000); }
+    location.hash = id;
+    show("painel");
+    setTimeout(() => { if (current === "painel" && trip?.id === id) showTrip(trip); }, 80000);
+  } catch (err) { msg("form-err", "Não consegui salvar: " + err.message, "err"); }
+  btn.disabled = false; btn.textContent = "Salvar viagem";
+};
+
+/* ---------------------------------------------------------------- configuração */
+const TOKEN_URL = () => "https://github.com/settings/personal-access-tokens/new?" + new URLSearchParams({
+  name: "Monitor de passagens", description: "Usada pelo app Monitor de passagens para salvar viagens e configurar o robô.",
+  expires_in: "366", contents: "write", actions: "write", secrets: "write", workflows: "write"}).toString();
+
+function stepState(n, done){
+  $("s"+n).classList.toggle("done", done);
+  $(`s${n}-done`).hidden = !done; $(`s${n}-form`).hidden = done;
+}
+async function renderConfig(){
+  $("s1-repo-fields").hidden = onPages;
+  if (!onPages) { $("s1-owner").value = OWNER || ""; if (REPO) $("s1-reponame-in").value = REPO; }
+  $("s1-reponame").textContent = REPO || "o repositório deste site";
+  $("s1-link").href = TOKEN_URL();
+  stepState(1, connected());
+  if (connected()) $("s1-repo").textContent = `${OWNER}/${REPO}`;
+  [2,3,4].forEach(n => { $("s"+n).style.opacity = connected() ? "" : ".55"; });
+  ["s2-go","s3-go","s4-go"].forEach(id => $(id).disabled = !connected());
+  if (!connected()) { stepState(2,false); stepState(3,false); stepState(4,false); return; }
+  try {
+    const names = new Set((await gh("/actions/secrets")).secrets.map(s => s.name));
+    stepState(2, names.has("SERPAPI_KEY"));
+    stepState(3, names.has("TELEGRAM_TOKEN") && names.has("TELEGRAM_CHAT_ID"));
+    let wf = false; try { await gh("/contents/.github/workflows/monitor.yml"); wf = true; } catch {}
+    stepState(4, wf);
+  } catch (e) { msg("s1-msg", "A chave salva não funciona mais (talvez tenha expirado). Gere uma nova.", "err"); stepState(1,false); }
+}
+document.addEventListener("click", e => { const r = e.target.closest("[data-redo]"); if (r) { const n = r.dataset.redo.slice(1); $(`s${n}-done`).hidden = true; $(`s${n}-form`).hidden = false; } });
+
+$("s1-go").onclick = async () => {
+  const tok = $("s1-token").value.trim();
+  if (!onPages) { OWNER = $("s1-owner").value.trim(); REPO = $("s1-reponame-in").value.trim(); }
+  if (!tok.startsWith("github_pat_") && !tok.startsWith("ghp_")) return msg("s1-msg", "Esse código não parece uma chave do GitHub. Ela começa com github_pat_.", "err");
+  if (!OWNER || !REPO) return msg("s1-msg", "Informe seu usuário e o nome do repositório.", "err");
+  TOKEN = tok; msg("s1-msg", "Verificando…");
+  try {
+    const repo = await gh("");
+    if (!repo.permissions?.push) throw Object.assign(new Error(), {status:403});
+    await gh("/actions/secrets/public-key");
+    store.set("mp-token", TOKEN); store.set("mp-owner", OWNER); store.set("mp-repo", REPO);
+    msg("s1-msg", ""); toast("GitHub conectado."); renderConfig();
+  } catch (e) {
+    TOKEN = null;
+    msg("s1-msg", e.status === 404 ? `A chave não tem acesso ao repositório ${REPO}. Gere outra e marque esse repositório em Repository access.`
+      : e.status === 401 ? "Chave inválida ou expirada. Copie de novo, inteira." 
+      : "A chave não tem todas as permissões. Gere outra pelo botão Gerar chave no GitHub, sem alterar as permissões.", "err");
+  }
+};
+$("s1-out").onclick = () => { if (!confirm("Desconectar este aparelho? O monitor continua funcionando; só este aparelho deixa de poder editar.")) return;
+  store.set("mp-token", null); TOKEN = null; renderConfig(); };
+
+$("s2-go").onclick = async () => {
+  const key = $("s2-key").value.trim();
+  if (!/^[a-f0-9]{40,}$/i.test(key)) return msg("s2-msg", "Essa chave parece incompleta. Copie o código inteiro da página da SerpApi.", "err");
+  msg("s2-msg", "Salvando…");
+  try { await setSecret("SERPAPI_KEY", key); $("s2-key").value = ""; msg("s2-msg",""); toast("Chave da busca salva."); renderConfig(); }
+  catch (e) { msg("s2-msg", "Não consegui salvar: " + e.message, "err"); }
+};
+
+let botToken = null;
+$("s3-go").onclick = async () => {
+  botToken = $("s3-token").value.trim();
+  msg("s3-msg", "Verificando…");
+  try {
+    const r = await (await fetch(`https://api.telegram.org/bot${botToken}/getMe`)).json();
+    if (!r.ok) throw 0;
+    $("s3-open").href = `https://t.me/${r.result.username}`;
+    $("s3-chat").hidden = false; msg("s3-msg", "");
+  } catch (e) { msg("s3-msg", e instanceof TypeError ? "Não consegui falar com o Telegram. Confira a internet e tente de novo." : "O Telegram não reconheceu esse código. Copie a mensagem do BotFather de novo, só a parte com números, dois-pontos e letras.", "err"); }
+};
+$("s3-verify").onclick = async () => {
+  msg("s3-msg", "Procurando sua mensagem…");
+  try {
+    const r = await (await fetch(`https://api.telegram.org/bot${botToken}/getUpdates`)).json();
+    const ups = (r.result || []).filter(u => u.message?.chat?.id);
+    if (!ups.length) return msg("s3-msg", "Ainda não vi sua mensagem. Abra o bot, toque em Iniciar, mande “oi” e tente de novo.", "err");
+    const chatId = String(ups.at(-1).message.chat.id);
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({chat_id: chatId, text: "✅ Pronto! Os alertas de passagens vão chegar aqui."})});
+    await setSecret("TELEGRAM_TOKEN", botToken);
+    await setSecret("TELEGRAM_CHAT_ID", chatId);
+    $("s3-token").value = ""; $("s3-chat").hidden = true; msg("s3-msg", "");
+    toast("Telegram conectado. Mandei uma mensagem de teste."); renderConfig();
+  } catch (e) { msg("s3-msg", "Algo deu errado ao falar com o Telegram. Tente de novo em instantes.", "err"); }
+};
+
+async function install(){
+  const steps = [
+    ["Programa de checagem", () => writeFile("monitor.py", $("file-monitor").textContent, "instala monitor")],
+    ["Dependências", () => writeFile("requirements.txt", $("file-reqs").textContent, "instala dependências")],
+    ["Agendamento automático", () => writeFile(".github/workflows/monitor.yml", $("file-workflow").textContent, "instala agendamento")],
+    ["Lista de viagens", async () => { if (await readFile("viagens.json") == null) await writeFile("viagens.json", '{\n  "viagens": []\n}\n', "cria lista de viagens"); }],
+  ];
+  const ul = $("s4-progress"); ul.innerHTML = "";
+  for (const [label, fn] of steps) {
+    const li = document.createElement("li"); li.textContent = "… " + label; ul.append(li);
+    await fn(); li.textContent = "✓ " + label;
+  }
+}
+$("s4-go").onclick = async () => {
+  $("s4-go").disabled = true; msg("s4-msg", "");
+  try {
+    await install();
+    toast("Monitor ligado. Agora cadastre sua primeira viagem.", 5000);
+    renderConfig();
+    setTimeout(() => show("viagens"), 1200);
+  } catch (e) { msg("s4-msg", "Não consegui instalar: " + e.message + ". Confira se a chave do passo 1 foi gerada pelo botão, com todas as permissões.", "err"); }
+  $("s4-go").disabled = false;
+};
+$("s4-again").onclick = () => { $("s4-done").hidden = true; $("s4-form").hidden = false; };
+
+/* ---------------------------------------------------------------- início */
+(async () => {
+  if (!connected()) {
+    let temViagens = false;
+    try { temViagens = (await loadTrips()).length > 0; } catch {}
+    // quem não configurou e não tem viagens começa pela configuração
+    show(temViagens ? "painel" : "config");
+  } else show("painel");
+})();
+</script>
+</body>
+</html>
