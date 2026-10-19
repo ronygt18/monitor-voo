@@ -1,2 +1,3 @@
 timestamp,total,ida_preco,ida_cia,ida_horario,ida_paradas,volta_preco,volta_cia,volta_horario,volta_paradas,total_preferida,total_mais_barato,nivel_google_ida,nivel_google_volta,recomendacao
 2026-10-19T18:48-03:00,1960.0,893.0,LATAM,09:55-13:20,0,1067.0,Azul,10:20-13:55,0,,1960.0,,,AGUARDAR - monitorando
+2026-10-19T18:49-03:00,1995.0,893.0,LATAM,09:55-13:20,0,1102.0,LATAM,13:45-17:20,0,1995.0,1960.0,,,AGUARDAR - monitorando
