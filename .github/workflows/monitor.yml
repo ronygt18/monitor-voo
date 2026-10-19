@@ -1,0 +1,40 @@
+name: Monitor de passagens
+
+on:
+  schedule:
+    - cron: "0 6,11,17,23 * * *"   # 03h, 08h, 14h e 20h (horário de Brasília)
+  workflow_dispatch:
+    inputs:
+      viagem:
+        description: "id de uma viagem (vazio = todas)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency: monitor-voo
+
+jobs:
+  checar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python monitor.py
+        env:
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          VIAGEM: ${{ inputs.viagem }}
+      - name: Salvar histórico
+        run: |
+          git config user.name "monitor-voo"
+          git config user.email "monitor-voo@users.noreply.github.com"
+          git add data/ || true
+          git diff --cached --quiet && exit 0
+          git commit -m "preços $(date -u +%F_%H%M)"
+          git pull --rebase -q && git push
