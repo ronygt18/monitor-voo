@@ -22,3 +22,4 @@ timestamp,total,ida_preco,ida_cia,ida_horario,ida_paradas,volta_preco,volta_cia,
 2026-10-25T20:09-03:00,1867.0,854.0,LATAM,09:55-13:20,0,1013.0,Azul,10:20-13:55,0,2087.0,1867.0,,,AGUARDAR - monitorando
 2026-10-26T03:20-03:00,1972.0,959.0,LATAM,09:55-13:20,0,1013.0,Azul,10:20-13:55,0,2192.0,1972.0,,,AGUARDAR - monitorando
 2026-10-26T08:27-03:00,1972.0,959.0,LATAM,09:55-13:20,0,1013.0,Azul,10:20-13:55,0,2192.0,1972.0,,,AGUARDAR - monitorando
+2026-10-26T20:16-03:00,1444.0,866.0,LATAM,09:55-13:20,0,578.0,Azul,10:20-13:55,0,1977.0,1444.0,,,COMPRAR - perto do mínimo e começando a subir
